@@ -3,10 +3,47 @@
 startCommand:
   type: http
   configSchema:
-    # JSON Schema defining the configuration options for the MCP
     type: object
-    description: "AILint MCP Server - Intelligent code analysis for AI assistants"
+    title: "AILint MCP Server"
+    description: "🎯 AI-powered code quality analysis with principle-aware insights. Automatically detects security vulnerabilities, architectural problems, and SOLID principle violations in your code."
     properties:
       # Sem configurações obrigatórias - funciona out-of-the-box!
     additionalProperties: false
   exampleConfig: {}
+  
+# Metadata for Smithery marketplace
+metadata:
+  displayName: "AILint - Intelligent Code Analysis"
+  shortDescription: "AI-powered code quality analysis with security, architecture, and SOLID principle detection"
+  longDescription: |
+    AILint helps developers write better code by automatically detecting:
+    
+    🚨 **Security Issues**: SQL injection, weak cryptography, input validation gaps
+    🏗️ **Architecture Problems**: God classes, tight coupling, dependency injection issues  
+    📐 **SOLID Violations**: Single Responsibility, Open/Closed, Interface Segregation
+    🎯 **Code Quality**: Deep nesting, long functions, unclear variable names
+    ⚡ **Performance**: Blocking operations, inefficient patterns
+    
+    **Available Tools:**
+    • `analyze-code` - Comprehensive code analysis with specific suggestions
+    • `get-available-rules` - Browse all available rules by category
+    • `setup-project` - Configure project-specific rules for your IDE
+    • `health-check` - Monitor system status and GitHub connectivity
+    
+    **Usage Examples:**
+    • "Analyze this React component for issues. use ailint"
+    • "What security rules does AILint check? use ailint" 
+    • "Setup this project with SOLID and React rules for cursor. use ailint"
+    
+    **Features:**
+    ✅ Zero configuration - works immediately after installation
+    ✅ GitHub-powered rules - always up-to-date with latest patterns
+    ✅ Framework-aware - React, Vue, Angular, Node.js specific checks
+    ✅ Educational - explains WHY something is wrong and HOW to fix it
+    ✅ Multi-IDE support - Cursor, Windsurf, Claude Desktop, VS Code
+    
+  category: "code-quality"
+  tags: ["code-analysis", "security", "architecture", "solid", "react", "quality"]
+  author: "AILint Team"
+  website: "https://github.com/lucianfialho/ailint"
+  documentation: "https://github.com/lucianfialho/ailint#readme"
