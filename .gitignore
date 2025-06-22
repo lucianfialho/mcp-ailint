@@ -112,7 +112,6 @@ public
 # Build outputs
 dist/
 build/
-lib/
 
 # IDE and editor files
 .vscode/
