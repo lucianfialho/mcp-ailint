@@ -1,0 +1,49 @@
+---
+name: avoid-god-classes
+description: AI creates massive classes that violate Single Responsibility Principle
+category: universal
+severity: warning
+---
+
+# Avoid God Classes
+
+## 🎯 Rule Purpose
+
+**Prevents AI from creating massive classes that violate the Single Responsibility Principle.**
+
+This rule detects large, unfocused classes and enforces decomposition into smaller, cohesive classes with single responsibilities.
+
+## 🚫 AI Limitation Resolved
+
+**Problem**: AI creates "kitchen sink" classes because training data shows convenience classes:
+- `UserManager` doing validation, persistence, email, files
+- `DataService` handling multiple unrelated operations  
+- `Helper` classes with dozens of unrelated methods
+- Classes with 20+ methods and 500+ lines
+
+**Solution**: This state machine detects large classes and enforces Single Responsibility Principle.
+
+## ⚡ How It Works
+
+1. **Detection**: Counts methods, lines, and identifies mixed responsibilities
+2. **Analysis**: Groups related methods and finds decomposition boundaries
+3. **Constraint**: Forces class breakdown into focused, single-purpose classes
+4. **Validation**: Ensures each class has one clear responsibility
+
+## 💡 Key Constraints Applied
+
+- **Size Limits**: Max 10 methods, 200 lines per class
+- **Single Responsibility**: One reason to change per class
+- **High Cohesion**: Methods work together on related data
+- **Domain Focus**: Classes named after domain concepts
+- **Composition**: Use multiple focused classes instead of one large class
+
+## 🎯 Expected Results
+
+After applying this rule, your AI will generate:
+- ✅ Small, focused classes with single responsibilities
+- ✅ High cohesion within classes
+- ✅ Clear separation of concerns
+- ✅ Composable, testable design
+- ❌ No "Manager" or "Helper" god classes
+- ❌ No classes with 20+ methods doing everything

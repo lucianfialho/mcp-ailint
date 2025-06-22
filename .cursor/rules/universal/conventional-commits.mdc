@@ -1,0 +1,52 @@
+---
+name: conventional-commits
+description: >-
+  AI generates inconsistent, vague commit messages instead of conventional
+  commit format
+category: universal
+severity: warning
+---
+
+# Conventional Commits
+
+## 🎯 Rule Purpose
+
+**Prevents AI from generating vague, inconsistent commit messages by enforcing Conventional Commits standard.**
+
+This rule detects commit message requests and forces structured, informative commits that follow industry conventions.
+
+## 🚫 AI Limitation Resolved
+
+**Problem**: AI generates useless commit messages because:
+- Training data contains many vague commits ("fix stuff", "update code")
+- No understanding of change impact or categorization
+- Missing context about conventional commit standards
+- No scope or breaking change awareness
+
+**Solution**: This state machine detects commit contexts and enforces Conventional Commits format.
+
+## ⚡ How It Works
+
+1. **Detection**: Identifies commit message requests and git contexts
+2. **Analysis**: Categorizes change type and assesses scope/impact
+3. **Constraint**: Enforces conventional format with proper type/scope/description
+4. **Validation**: Ensures clarity, consistency, and actionable descriptions
+
+## 💡 Key Constraints Applied
+
+- **Conventional Format**: Enforce `type(scope): description` structure
+- **Specific Types**: Use correct prefixes (feat, fix, docs, refactor, etc.)
+- **Clear Descriptions**: Actionable, specific commit messages
+- **Breaking Changes**: Proper indication of breaking changes
+- **Consistent Scoping**: Logical scope categorization
+
+## 🎯 Expected Results
+
+After applying this rule, your AI will generate:
+- ✅ Conventional commit format with proper types
+- ✅ Clear, actionable descriptions
+- ✅ Consistent scope usage
+- ✅ Breaking change indicators when needed
+- ✅ Professional, maintainable git history
+- ❌ No vague "fix stuff" or "update code" commits
+- ❌ No missing type prefixes or unclear descriptions

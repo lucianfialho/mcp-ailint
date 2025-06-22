@@ -1,0 +1,49 @@
+---
+name: composition-over-inheritance
+description: AI defaults to inheritance when composition would be better
+category: universal
+severity: warning
+---
+
+# Composition Over Inheritance
+
+## 🎯 Rule Purpose
+
+**Prevents AI from defaulting to inheritance when composition is more appropriate.**
+
+This rule implements the fundamental principle "favor composition over inheritance" by detecting inheritance patterns and steering toward composition instead.
+
+## 🚫 AI Limitation Resolved
+
+**Problem**: AI defaults to inheritance because it's common in training data, even when:
+- The relationship is "has-a" not "is-a"
+- Behavior needs to be mixed and matched
+- Testing requires mocking dependencies
+- Future changes need flexibility
+
+**Solution**: This state machine detects inheritance patterns and enforces composition constraints.
+
+## ⚡ How It Works
+
+1. **Detection**: Scans for inheritance keywords and patterns
+2. **Analysis**: Evaluates if relationship is truly "is-a" or could be "has-a"
+3. **Constraint**: Suggests composition patterns and dependency injection
+4. **Validation**: Ensures output uses composition over inheritance
+
+## 💡 Key Constraints Applied
+
+- **Dependency Injection**: Force constructor/parameter injection
+- **Behavior Composition**: Compose behaviors instead of inheriting them
+- **Strategy Pattern**: Use for behavior variation
+- **Depth Limiting**: Max 2-3 inheritance levels
+- **Loose Coupling**: Prefer composition for flexibility
+
+## 🎯 Expected Results
+
+After applying this rule, your AI will generate:
+- ✅ Loosely coupled, testable code
+- ✅ Flexible composition patterns
+- ✅ Dependency injection by default
+- ✅ Strategy pattern for behavior variation
+- ❌ No deep inheritance hierarchies
+- ❌ No tightly coupled dependencies

@@ -1,0 +1,8 @@
+{
+    "mcpServers": {
+      "ailint": {
+        "command": "npx",
+        "args": ["/Users/lucianfialho/Code/personal/ailint-mcp/dist/index.js"]
+      }
+    }
+  }
