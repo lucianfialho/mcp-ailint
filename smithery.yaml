@@ -1,0 +1,12 @@
+# Smithery configuration file: https://smithery.ai/docs/config#smitheryyaml
+
+startCommand:
+  type: http
+  configSchema:
+    # JSON Schema defining the configuration options for the MCP
+    type: object
+    description: "AILint MCP Server - Intelligent code analysis for AI assistants"
+    properties:
+      # Sem configurações obrigatórias - funciona out-of-the-box!
+    additionalProperties: false
+  exampleConfig: {}

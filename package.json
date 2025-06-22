@@ -30,14 +30,6 @@
     "clean": "rm -rf dist",
     "prebuild": "npm run clean"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/ailint/mcp.git"
-  },
-  "bugs": {
-    "url": "https://github.com/ailint/mcp/issues"
-  },
-  "homepage": "https://github.com/ailint/mcp#readme",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.0",
     "commander": "^14.0.0",
