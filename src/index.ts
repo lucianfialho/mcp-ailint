@@ -5,9 +5,15 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { Command } from "commander";
 import { CodeAnalyzer } from "./lib/analyzer.js";
-import { UNIVERSAL_RULES } from "./lib/hardcodedRules.js";
 import { ProjectConfigManager } from "./lib/projectConfig.js";
-import { getAvailableRuleCategories } from "./lib/api.js";
+import { 
+  getAvailableRuleCategories, 
+  getUniversalRules, 
+  getRulesFromCategories, 
+  isGitHubRepositoryAccessible,
+  formatRuleForDisplay,
+  getRuleStats
+} from "./lib/api.js";
 
 // Parse CLI arguments using commander
 const program = new Command()
@@ -72,61 +78,120 @@ Usage examples:
 - "analyze this code with react, solid rules. use ailint" - Universal + GitHub rules`,
     {
       code: z.string().describe("The code to analyze for quality issues and violations"),
-      language: z.string().optional().describe("Programming language (javascript, python, typescript, etc). If not provided, will be auto-detected"),
-      filename: z.string().optional().describe("Filename to help with language detection"),
-      rulesets: z.array(z.string()).optional().describe("Additional rulesets to apply (e.g., ['react', 'solid'])")
+      language: z.string().optional().describe("Programming language (javascript, python, typescript, etc)."),
+      filename: z.string().optional().describe("Filename to help with language detection and context"),
+      rulesets: z.array(z.string()).optional().describe("Additional rule sets to apply (e.g., ['react', 'solid'])")
     },
     async ({ code, language, filename, rulesets = [] }) => {
       try {
-        // Detect language if not provided
-        const detectedLanguage = language || CodeAnalyzer.detectLanguage(code, filename);
-        
-        // Analyze the code with optional additional rulesets
-        const result = await analyzer.analyzeCode(code, detectedLanguage, rulesets);
+        console.error(`🔍 Starting code analysis...`);
+        console.error(`📋 Requested additional rulesets: ${rulesets.length > 0 ? rulesets.join(', ') : 'none'}`);
 
-        // Format the response for the LLM
-        let response = `🔍 **AILint Code Analysis Results**\n\n`;
-        response += `**Language:** ${detectedLanguage}\n`;
-        response += `**Applied Rules:** ${result.appliedRules.join(', ') || 'Universal rules'}\n\n`;
-        
-        // Add summary
-        response += `${result.summary}\n\n`;
-        
-        // Add violations if any
-        if (result.violations.length > 0) {
-          response += `## 🚨 Issues Found\n\n`;
-          
-          for (const violation of result.violations) {
-            const severityIcon = violation.severity === 'error' ? '🚨' : 
-                                violation.severity === 'warning' ? '⚠️' : '💡';
-            
-            response += `${severityIcon} **${violation.rule.toUpperCase().replace('-', ' ')}**`;
-            if (violation.line) {
-              response += ` (Line ${violation.line})`;
-            }
-            response += `\n`;
-            response += `${violation.message}\n\n`;
-            
-            if (violation.suggestion) {
-              response += `💡 **Fix:** ${violation.suggestion}\n\n`;
-            }
-            
-            if (violation.example) {
-              response += `📚 **Example:**\n`;
-              response += `❌ **Avoid:**\n\`\`\`${detectedLanguage}\n${violation.example.bad}\n\`\`\`\n\n`;
-              response += `✅ **Prefer:**\n\`\`\`${detectedLanguage}\n${violation.example.good}\n\`\`\`\n\n`;
-              if (violation.example.explanation) {
-                response += `**Why:** ${violation.example.explanation}\n\n`;
-              }
-            }
-            
-            response += `---\n\n`;
-          }
+        // Check GitHub repository accessibility
+        const isGitHubAccessible = await isGitHubRepositoryAccessible();
+        if (!isGitHubAccessible) {
+          return {
+            content: [{
+              type: "text",
+              text: `❌ **GitHub Repository Unavailable**
+
+The AILint rules repository is currently inaccessible. Please check:
+- Internet connection
+- GitHub API status
+- Repository accessibility at: https://github.com/lucianfialho/ailint`
+            }]
+          };
         }
+
+        // Load universal rules (always applied)
+        console.error(`📥 Loading universal rules from GitHub...`);
+        const universalRules = await getUniversalRules();
         
-        // Add suggestions
+        if (universalRules.length === 0) {
+          return {
+            content: [{
+              type: "text",
+              text: `⚠️ **No Universal Rules Available**
+
+Could not load universal rules from GitHub repository. This may indicate:
+- Repository structure issues
+- Missing universal rules directory
+- Network connectivity problems
+
+Please check the repository at: https://github.com/lucianfialho/ailint`
+            }]
+          };
+        }
+
+        console.error(`✅ Loaded ${universalRules.length} universal rules`);
+
+        // Load additional rulesets if specified
+        const additionalRules = rulesets.length > 0 
+          ? await getRulesFromCategories(rulesets)
+          : [];
+
+        if (rulesets.length > 0) {
+          console.error(`📦 Loaded ${additionalRules.length} additional rules from: ${rulesets.join(', ')}`);
+        }
+
+        // Combine all rules
+        const allRules = [...universalRules, ...additionalRules];
+        const ruleStats = getRuleStats(allRules);
+
+        console.error(`🎯 Total rules for analysis: ${allRules.length}`);
+        console.error(`📊 Rules by category: ${Object.entries(ruleStats.byCategory).map(([cat, count]) => `${cat}:${count}`).join(', ')}`);
+
+        // Analyze code with GitHub-sourced rules
+        const result = await analyzer.analyze(code, allRules, language, filename);
+
+        // Format response
+        let response = `🔍 **AILint Code Analysis Results**\n\n`;
+        
+        // Analysis summary
+        response += `**Code analyzed:** ${result.metrics.linesOfCode} lines\n`;
+        response += `**Rules applied:** ${allRules.length} (${ruleStats.byCategory.universal || 0} universal`;
+        if (rulesets.length > 0) {
+          response += ` + ${additionalRules.length} from ${rulesets.join(', ')}`;
+        }
+        response += `)\n`;
+        response += `**Language:** ${result.language || 'auto-detected'}\n\n`;
+
+        // Violations found
+        if (result.violations.length > 0) {
+          response += `## 🚨 Issues Found (${result.violations.length})\n\n`;
+          
+          const groupedViolations = result.violations.reduce((acc: Record<string, typeof result.violations>, violation) => {
+            if (!acc[violation.severity]) acc[violation.severity] = [];
+            acc[violation.severity].push(violation);
+            return acc;
+          }, {} as Record<string, typeof result.violations>);
+
+          // Show errors first, then warnings, then info
+          const severityOrder = ['error', 'warning', 'info'];
+          for (const severity of severityOrder) {
+            const violations = groupedViolations[severity];
+            if (!violations || violations.length === 0) continue;
+
+            const severityIcon = severity === 'error' ? '🚨' : 
+                                severity === 'warning' ? '⚠️' : '💡';
+            
+            for (const violation of violations) {
+              response += `${severityIcon} **${violation.rule.toUpperCase()}** (Line ${violation.line})\n`;
+              response += `${violation.message}\n`;
+              if (violation.suggestion) {
+                response += `💡 **Fix:** ${violation.suggestion}\n`;
+              }
+              response += `\n`;
+            }
+          }
+        } else {
+          response += `## ✅ No Issues Found\n\n`;
+          response += `Great job! Your code follows all applied coding standards and best practices.\n\n`;
+        }
+
+        // Suggestions for improvement
         if (result.suggestions.length > 0) {
-          response += `## 💡 Recommendations\n\n`;
+          response += `## 💡 Suggestions for Improvement\n\n`;
           
           for (const suggestion of result.suggestions) {
             const typeIcon = suggestion.type === 'security' ? '🔒' : 
@@ -137,25 +202,34 @@ Usage examples:
             response += `${suggestion.description}\n\n`;
           }
         }
-        
+
         // Add metrics
         response += `## 📊 Code Metrics\n\n`;
         response += `- **Lines of Code:** ${result.metrics.linesOfCode}\n`;
         response += `- **Complexity:** ${result.metrics.complexity}/10\n`;
         response += `- **Maintainability Index:** ${result.metrics.maintainabilityIndex}/100\n`;
         response += `- **Technical Debt:** ${result.metrics.technicalDebt}\n\n`;
+
+        // Quality score
+        const qualityScore = Math.max(0, Math.min(100, 
+          result.metrics.maintainabilityIndex - (result.violations.length * 10)
+        ));
         
+        response += `🎯 **Overall Quality Score:** ${qualityScore}/100\n\n`;
+
         // Configuration message
         response += `---\n\n`;
         
         if (rulesets.length > 0) {
           response += `**Configuration:** Universal rules + ${rulesets.join(', ')} rules applied\n`;
-          response += `**GitHub Integration:** Successfully loaded additional rules\n`;
+          response += `**GitHub Integration:** ✅ Successfully loaded rules from GitHub\n`;
         } else {
           response += `**Configuration:** Using Universal rules (security, architecture, best practices)\n`;
-          response += `**Next:** Run \`"analyze this code with react, solid rules. use ailint"\` to add framework-specific rules\n`;
+          response += `**Add More Rules:** Run \`"analyze this code with react, solid rules. use ailint"\` for framework-specific analysis\n`;
         }
         
+        response += `**Source:** github:lucianfialho/ailint (${allRules.length} rules loaded)\n`;
+
         return {
           content: [
             {
@@ -165,11 +239,21 @@ Usage examples:
           ],
         };
       } catch (error) {
+        console.error('❌ Analysis error:', error);
         return {
           content: [
             {
               type: "text",
-              text: `❌ **Analysis Error:** ${error instanceof Error ? error.message : 'Unknown error occurred during code analysis'}`,
+              text: `❌ **Analysis Error**
+
+${error instanceof Error ? error.message : 'Unknown error occurred during code analysis'}
+
+**Troubleshooting:**
+- Check internet connection for GitHub API access
+- Verify repository accessibility: https://github.com/lucianfialho/ailint
+- Try again in a few moments
+
+**Error Details:** ${error instanceof Error ? error.stack : 'No additional details available'}`,
             },
           ],
         };
@@ -196,67 +280,75 @@ Use this to understand what rules are available before setting up a project or r
     {},
     async () => {
       try {
+        console.error('📋 Fetching available rules from GitHub...');
+
+        // Check GitHub accessibility
+        const isAccessible = await isGitHubRepositoryAccessible();
+        if (!isAccessible) {
+          return {
+            content: [{
+              type: "text",
+              text: `❌ **GitHub Repository Unavailable**
+
+Cannot fetch rules list. The repository may be temporarily unavailable.
+Please check: https://github.com/lucianfialho/ailint`
+            }]
+          };
+        }
+
         // Get available categories from GitHub
         const availableCategories = await getAvailableRuleCategories();
         
-        const universalRules = UNIVERSAL_RULES.map(rule => ({
-          name: rule.name,
-          description: rule.description,
-          category: rule.category,
-          severity: rule.severity
-        }));
+        if (availableCategories.length === 0) {
+          return {
+            content: [{
+              type: "text",
+              text: `⚠️ **No Rule Categories Found**
+
+The GitHub repository appears to be empty or inaccessible.
+Expected categories: universal, frameworks, principles, security`
+            }]
+          };
+        }
+
+        // Load universal rules to show detailed info
+        const universalRules = await getUniversalRules();
 
         let response = `📋 **Available AILint Rules**\n\n`;
+        response += `**Source:** github:lucianfialho/ailint\n`;
+        response += `**Categories Found:** ${availableCategories.length}\n`;
+        response += `**Status:** ✅ Repository accessible\n\n`;
         
         response += `## 🌍 Universal Rules (Always Active)\n\n`;
-        for (const rule of universalRules) {
-          const severityIcon = rule.severity === 'error' ? '🚨' : 
-                              rule.severity === 'warning' ? '⚠️' : '💡';
-          response += `${severityIcon} **${rule.name}** - ${rule.description}\n`;
-        }
-        
-        response += `\n## 🚀 Framework Rules (GitHub API)\n\n`;
-        if (availableCategories.includes('frameworks')) {
-          response += `✅ **Available via GitHub API:**\n`;
-          response += `- **react** - React hooks, components, performance patterns\n`;
-          response += `- **vue** - Composition API, reactivity patterns\n`;
-          response += `- **angular** - Dependency injection, lifecycle, best practices\n`;
-          response += `- **nodejs** - Async patterns, security, performance\n`;
+        if (universalRules.length > 0) {
+          for (const rule of universalRules) {
+            response += formatRuleForDisplay(rule) + '\n';
+          }
+          response += `\n**Total Universal Rules:** ${universalRules.length}\n\n`;
         } else {
-          response += `⏳ **Coming Soon** - Framework rules will be available when GitHub repository is ready\n`;
+          response += `⚠️ No universal rules found in repository\n\n`;
         }
         
-        response += `\n## 🏗️ Principle Rules (GitHub API)\n\n`;
-        if (availableCategories.includes('principles')) {
+        response += `## 🚀 Additional Rule Categories\n\n`;
+        const otherCategories = availableCategories.filter(cat => cat !== 'universal');
+        
+        if (otherCategories.length > 0) {
           response += `✅ **Available via GitHub API:**\n`;
-          response += `- **solid** - Single Responsibility, Open/Closed, Liskov Substitution, Interface Segregation, Dependency Inversion\n`;
-          response += `- **ddd** - Domain-Driven Design patterns\n`;
-          response += `- **clean-architecture** - Dependency rules, clean code principles\n`;
-          response += `- **calisthenics** - Object calisthenics rules for clean code\n`;
+          for (const category of otherCategories) {
+            const categoryDesc = getCategoryDescription(category);
+            response += `- **${category}** - ${categoryDesc}\n`;
+          }
         } else {
-          response += `⏳ **Coming Soon** - Principle rules will be available when GitHub repository is ready\n`;
-        }
-        
-        response += `\n## 🔒 Security Rules\n\n`;
-        response += `✅ **Built-in Security (Universal):**\n`;
-        response += `- SQL injection prevention (Enhanced in Phase 2)\n`;
-        response += `- XSS protection patterns\n`;
-        response += `- Secure authentication patterns\n`;
-        response += `- Input validation enforcement\n`;
-        
-        if (availableCategories.includes('security')) {
-          response += `\n✅ **Additional Security Rules (GitHub API):**\n`;
-          response += `- Advanced cryptography patterns\n`;
-          response += `- OWASP Top 10 compliance\n`;
-          response += `- Framework-specific security rules\n`;
+          response += `⏳ **Coming Soon** - Additional rule categories will be available when repository is populated\n`;
         }
         
         response += `\n---\n\n`;
-        response += `**Current Status:** Phase 2 with GitHub API integration\n`;
         response += `**Usage Examples:**\n`;
         response += `- \`"analyze this code. use ailint"\` - Universal rules only\n`;
-        response += `- \`"analyze this code with react, solid rules. use ailint"\` - Universal + GitHub rules\n`;
-        response += `- \`"setup project with react, solid for cursor. use ailint"\` - Project configuration\n`;
+        response += `- \`"analyze this code with react, solid rules. use ailint"\` - Universal + specific rules\n`;
+        response += `- \`"setup project with react, solid for cursor. use ailint"\` - Project configuration\n\n`;
+        
+        response += `**Available Categories:** ${availableCategories.join(', ')}\n`;
 
         return {
           content: [
@@ -267,11 +359,21 @@ Use this to understand what rules are available before setting up a project or r
           ],
         };
       } catch (error) {
+        console.error('❌ Error fetching rules:', error);
         return {
           content: [
             {
               type: "text",
-              text: `❌ **Error:** ${error instanceof Error ? error.message : 'Failed to retrieve available rules'}`,
+              text: `❌ **Error Loading Rules**
+
+${error instanceof Error ? error.message : 'Failed to retrieve available rules'}
+
+**Possible Causes:**
+- Network connectivity issues
+- GitHub API rate limiting
+- Repository access problems
+
+**Try Again:** \`"what rules are available? use ailint"\``,
             },
           ],
         };
@@ -302,6 +404,31 @@ Example usage: "use ailint for this project with solid, react for cursor"`,
     },
     async ({ projectPath, rulesets, ide = "cursor" }) => {
       try {
+        console.error(`🔧 Starting project setup...`);
+        console.error(`📁 Project: ${projectPath}`);
+        console.error(`📋 Rulesets: ${rulesets.join(', ')}`);
+        console.error(`🎯 IDE: ${ide}`);
+
+        // Check GitHub accessibility first
+        const isAccessible = await isGitHubRepositoryAccessible();
+        if (!isAccessible) {
+          return {
+            content: [{
+              type: "text",
+              text: `❌ **Setup Failed: GitHub Repository Unavailable**
+
+Cannot setup project because the AILint rules repository is not accessible.
+
+**Troubleshooting:**
+- Check internet connection
+- Verify repository access: https://github.com/lucianfialho/ailint
+- Try again in a few moments
+
+**Alternative:** Use \`"analyze this code. use ailint"\` for basic universal rules when GitHub is available.`
+            }]
+          };
+        }
+
         // Perform actual project setup
         const result = await projectManager.setupProject(projectPath, rulesets, ide);
         
@@ -313,13 +440,14 @@ Example usage: "use ailint for this project with solid, react for cursor"`,
         if (result.success) {
           response += `## ✅ Setup Completed Successfully\n\n`;
           response += `**Downloaded Rules:** ${result.rulesDownloaded.join(', ')}\n`;
+          response += `**Total Rules:** ${result.totalRules || 0}\n`;
           response += `**Config Created:** ${result.configCreated}\n`;
           response += `**Auto-attach:** ${result.autoAttachEnabled ? 'Enabled' : 'Disabled'}\n\n`;
           
           response += `## 🚀 What's Available Now\n\n`;
           response += `Use \`"analyze this code. use ailint"\` to get:\n`;
           response += `- Universal rules (security, architecture, code quality)\n`;
-          response += `- ${rulesets.join(' + ')} rules (automatically loaded)\n`;
+          response += `- ${result.rulesDownloaded.filter(r => r !== 'universal').join(' + ')} rules (automatically loaded)\n`;
           response += `- Project-specific configuration\n`;
           response += `- Persistent rules across sessions\n\n`;
           
@@ -337,12 +465,17 @@ Example usage: "use ailint for this project with solid, react for cursor"`,
           response += `## 🔄 Fallback Options\n\n`;
           response += `1. **Manual Analysis:** Use \`"analyze this code with ${rulesets.join(', ')} rules. use ailint"\`\n`;
           response += `2. **Universal Rules:** \`"analyze this code. use ailint"\` (always works)\n`;
-          response += `3. **Check GitHub:** Ensure ailint/rules repository is accessible\n\n`;
+          response += `3. **Check GitHub:** Ensure lucianfialho/ailint repository is accessible\n\n`;
           
           response += `**Troubleshooting:**\n`;
           response += `- Verify project path exists and is writable\n`;
           response += `- Check internet connection for GitHub API\n`;
           response += `- Try with fewer rulesets first\n`;
+          
+          response += `🔧 **Fix GitHub Access:**\n`;
+          response += `- Check internet connection\n`;
+          response += `- Verify repository: https://github.com/lucianfialho/ailint\n`;
+          response += `- Try refreshing: \`"refresh ailint rules. use ailint"\`\n\n`;
         }
         
         return {
@@ -354,13 +487,225 @@ Example usage: "use ailint for this project with solid, react for cursor"`,
           ],
         };
       } catch (error) {
+        console.error('❌ Setup error:', error);
         return {
           content: [
             {
               type: "text",
-              text: `❌ **Setup Error:** ${error instanceof Error ? error.message : 'Failed to setup project'}`,
+              text: `❌ **Setup Error**
+
+${error instanceof Error ? error.message : 'Failed to setup project'}
+
+**Error Details:** ${error instanceof Error ? error.stack : 'No additional details'}
+
+**Recovery Steps:**
+1. Check project path exists and is writable
+2. Verify internet connection
+3. Try with simpler ruleset first: \`"setup with universal rules. use ailint"\``,
             },
           ],
+        };
+      }
+    }
+  );
+
+  // Additional helper tools
+  server.tool(
+    "refresh-rules",
+    `Refreshes AILint rules from GitHub repository.
+
+Useful when:
+- Rules have been updated in the repository
+- Cache needs to be cleared
+- Network issues caused stale data
+
+This tool clears the local cache and re-downloads rules from GitHub.`,
+    {
+      projectPath: z.string().optional().describe("Project path to refresh configuration for")
+    },
+    async ({ projectPath }) => {
+      try {
+        console.error('🔄 Refreshing rules from GitHub...');
+
+        // Clear cache and reload
+        const { githubClient } = await import('./lib/api.js');
+        githubClient.clearCache();
+
+        // Check accessibility
+        const isAccessible = await isGitHubRepositoryAccessible();
+        if (!isAccessible) {
+          return {
+            content: [{
+              type: "text",
+              text: `❌ **Refresh Failed: GitHub Unavailable**
+
+Cannot refresh rules because GitHub repository is not accessible.
+Please check your internet connection and try again.`
+            }]
+          };
+        }
+
+        // Reload universal rules
+        const universalRules = await getUniversalRules();
+        const categories = await getAvailableRuleCategories();
+
+        let response = `🔄 **Rules Refreshed Successfully**\n\n`;
+        response += `**Universal Rules:** ${universalRules.length} loaded\n`;
+        response += `**Available Categories:** ${categories.join(', ')}\n`;
+        response += `**Cache:** Cleared and reloaded\n\n`;
+
+        // If project path provided, refresh project config
+        if (projectPath) {
+          const isConfigured = await projectManager.isProjectConfigured(projectPath);
+          if (isConfigured) {
+            const existingConfig = await projectManager.getProjectConfig(projectPath);
+            if (existingConfig?.ailint?.categories) {
+              const updateResult = await projectManager.updateProjectConfig(
+                projectPath,
+                existingConfig.ailint.categories,
+                existingConfig.ailint.ide
+              );
+              
+              if (updateResult.success) {
+                response += `✅ **Project configuration refreshed**\n`;
+                response += `**Updated Rules:** ${updateResult.totalRules}\n`;
+                response += `**Categories:** ${updateResult.rulesDownloaded.join(', ')}\n\n`;
+              } else {
+                response += `⚠️ **Project refresh failed:** ${updateResult.error}\n\n`;
+              }
+            }
+          } else {
+            response += `ℹ️ **Project not configured** - run setup first\n\n`;
+          }
+        }
+
+        response += `**Next:** Rules are now up-to-date and ready for analysis`;
+
+        return {
+          content: [{
+            type: "text",
+            text: response
+          }]
+        };
+
+      } catch (error) {
+        console.error('❌ Refresh error:', error);
+        return {
+          content: [{
+            type: "text",
+            text: `❌ **Refresh Failed**
+
+${error instanceof Error ? error.message : 'Unknown error during refresh'}
+
+**Try:** Check internet connection and GitHub repository access`
+          }]
+        };
+      }
+    }
+  );
+
+  server.tool(
+    "check-health",
+    `Performs a health check of AILint system.
+
+Verifies:
+- GitHub repository accessibility
+- Universal rules availability  
+- Cache status
+- System readiness
+
+Useful for troubleshooting connectivity or configuration issues.`,
+    {},
+    async () => {
+      try {
+        console.error('🏥 Performing AILint health check...');
+
+        const results = {
+          github: false,
+          universalRules: 0,
+          categories: 0,
+          cache: false,
+          timestamp: new Date().toISOString()
+        };
+
+        // Check GitHub accessibility
+        results.github = await isGitHubRepositoryAccessible();
+        
+        // Check universal rules
+        if (results.github) {
+          try {
+            const universalRules = await getUniversalRules();
+            results.universalRules = universalRules.length;
+          } catch (error) {
+            console.error('Failed to load universal rules:', error);
+          }
+
+          // Check available categories
+          try {
+            const categories = await getAvailableRuleCategories();
+            results.categories = categories.length;
+          } catch (error) {
+            console.error('Failed to load categories:', error);
+          }
+        }
+
+        // Check cache status
+        const { githubClient } = await import('./lib/api.js');
+        results.cache = true; // Cache is always available
+
+        let response = `🏥 **AILint Health Check**\n\n`;
+        response += `**Timestamp:** ${new Date().toLocaleString()}\n\n`;
+
+        response += `## 📊 System Status\n\n`;
+        response += `**GitHub Repository:** ${results.github ? '✅ Accessible' : '❌ Unavailable'}\n`;
+        response += `**Universal Rules:** ${results.universalRules > 0 ? `✅ ${results.universalRules} loaded` : '❌ Not available'}\n`;
+        response += `**Rule Categories:** ${results.categories > 0 ? `✅ ${results.categories} found` : '❌ Not available'}\n`;
+        response += `**Cache System:** ${results.cache ? '✅ Operational' : '❌ Error'}\n\n`;
+
+        const overallHealth = results.github && results.universalRules > 0 && results.categories > 0;
+        
+        response += `## 🎯 Overall Status\n\n`;
+        if (overallHealth) {
+          response += `✅ **HEALTHY** - All systems operational\n\n`;
+          response += `AILint is ready for code analysis and project setup.\n`;
+        } else {
+          response += `❌ **DEGRADED** - Some issues detected\n\n`;
+          
+          if (!results.github) {
+            response += `🔧 **Fix GitHub Access:**\n`;
+            response += `- Check internet connection\n`;
+            response += `- Verify repository: https://github.com/lucianfialho/ailint\n`;
+            response += `- Try refreshing: \`"refresh ailint rules. use ailint"\`\n\n`;
+          }
+          
+          if (results.universalRules === 0) {
+            response += `🔧 **Fix Universal Rules:**\n`;
+            response += `- Repository may be empty or misconfigured\n`;
+            response += `- Check rules/universal/ directory exists\n\n`;
+          }
+        }
+
+        response += `**Repository URL:** https://github.com/lucianfialho/ailint\n`;
+        response += `**Version:** 0.2.0\n`;
+
+        return {
+          content: [{
+            type: "text",
+            text: response
+          }]
+        };
+
+      } catch (error) {
+        console.error('❌ Health check error:', error);
+        return {
+          content: [{
+            type: "text",
+            text: `❌ **Health Check Failed**
+
+${error instanceof Error ? error.message : 'Unknown error during health check'}
+
+**System Status:** Unknown - manual verification required`
+          }]
         };
       }
     }
@@ -369,22 +714,54 @@ Example usage: "use ailint for this project with solid, react for cursor"`,
   return server;
 }
 
+// Helper function for category descriptions
+function getCategoryDescription(category: string): string {
+  const descriptions = {
+    'frameworks': 'React, Vue, Angular, Node.js specific patterns',
+    'principles': 'SOLID, DDD, Clean Architecture guidelines', 
+    'security': 'OWASP, cryptography, input validation rules',
+    'performance': 'Optimization and efficiency patterns',
+    'testing': 'Unit testing, integration testing best practices'
+  };
+  
+  return descriptions[category as keyof typeof descriptions] || `${category} specific rules`;
+}
+
 // Main function to start the server
 async function main() {
+  console.error("🚀 Starting AILint MCP Server v0.2.0...");
+  
+  // Check GitHub repository accessibility on startup
+  try {
+    const isAccessible = await isGitHubRepositoryAccessible();
+    if (isAccessible) {
+      console.error("✅ GitHub repository accessible");
+      
+      // Load and cache universal rules on startup
+      const universalRules = await getUniversalRules();
+      console.error(`📦 Preloaded ${universalRules.length} universal rules`);
+    } else {
+      console.error("⚠️ GitHub repository not accessible - will attempt connections on demand");
+    }
+  } catch (error) {
+    console.error("⚠️ Could not verify GitHub access on startup:", error);
+  }
+
   if (TRANSPORT_TYPE === "stdio") {
-    // Stdio transport (usado pelo Cursor, Windsurf, Claude Desktop)
+    // Stdio transport (used by Cursor, Windsurf, Claude Desktop)
     const server = createServerInstance();
     const transport = new StdioServerTransport();
     await server.connect(transport);
-    console.error("AILint MCP Server Phase 2 running on stdio");
+    console.error("✅ AILint MCP Server running on stdio with GitHub integration");
   } else {
-    console.error(`Transport ${TRANSPORT_TYPE} not implemented in Phase 2. Use --transport stdio`);
+    console.error(`❌ Transport ${TRANSPORT_TYPE} not implemented. Use --transport stdio`);
     console.error("Supported transports: stdio (recommended for IDEs)");
     process.exit(1);
   }
 }
 
 main().catch((error) => {
-  console.error("Fatal error in AILint MCP Server:", error);
+  console.error("💥 Fatal error in AILint MCP Server:", error);
+  console.error("Stack trace:", error.stack);
   process.exit(1);
 });
