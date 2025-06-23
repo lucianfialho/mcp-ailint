@@ -1,1 +1,53 @@
-runtime: typescript
+name: ailint-mcp
+description: Avoid Shit Code - Constraint Rules for AI Code Generation
+version: 0.2.0
+author: AILint Team
+repository: https://github.com/lucianfialho/ailint-mcp
+license: MIT
+
+# Smithery.ai configuration
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    properties:
+      rulesets:
+        type: array
+        items:
+          type: string
+          enum: ["universal", "solid", "react", "vue", "angular", "nodejs", "security", "performance"]
+        default: ["universal"]
+        description: "Rule sets to apply during code analysis"
+      githubEnabled:
+        type: boolean
+        default: true
+        description: "Enable GitHub API integration for dynamic rules"
+      projectPath:
+        type: string
+        default: ""
+        description: "Project path for persistent rule configuration (optional)"
+    additionalProperties: false
+  commandFunction: |-
+    (config) => {
+      const args = ["--no-warnings", "dist/index.js", "--transport", "stdio"];
+      
+      // Add ruleset configuration if provided
+      if (config.rulesets && config.rulesets.length > 0) {
+        args.push("--rulesets", config.rulesets.join(","));
+      }
+      
+      // Add GitHub integration flag
+      if (config.githubEnabled === false) {
+        args.push("--no-github");
+      }
+      
+      // Add project path if provided
+      if (config.projectPath && config.projectPath.trim()) {
+        args.push("--project-path", config.projectPath.trim());
+      }
+      
+      return {
+        "command": "node",
+        "args": args
+      };
+    }
