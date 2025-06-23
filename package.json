@@ -13,6 +13,7 @@
   "author": "AILint Team",
   "license": "MIT",
   "type": "module",
+  "module": "./src/index.ts",
   "bin": {
     "ailint-mcp": "dist/index.js"
   },
