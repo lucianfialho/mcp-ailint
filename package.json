@@ -9,8 +9,8 @@
     "./shared": "./dist/shared/index.js"
   },
   "bin": {
-    "ailint": "./dist/cli/index.js",
-    "ailint-mcp": "./dist/server/index.js"
+    "ailint": "dist/cli/index.js",
+    "ailint-mcp": "dist/server/index.js"
   },
   "scripts": {
     "build": "tsc",
