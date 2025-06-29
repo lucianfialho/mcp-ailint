@@ -1,19 +1,19 @@
-# 🎯 AILint: Constraint Rules for AI Code Generation
+# AILint: Constraint Rules for AI Code Generation
 
 **Stop AI from generating problematic code – Enforce software engineering principles.**
 
-> 🚀 **The Problem**: AI assistants are incredible at generating functional code, but they often produce code that violates best practices, security principles, and architectural patterns. This leads to technical debt, security vulnerabilities, and maintainability nightmares.
+> **The Problem**: AI assistants are incredible at generating functional code, but they often produce code that violates best practices, security principles, and architectural patterns. This leads to technical debt, security vulnerabilities, and maintainability nightmares.
 >
-> ✅ **The Solution**: AILint provides a set of deterministic state machine rules that act as "guardrails" for AI code generation. By applying proven software engineering principles as constraints *during* the code generation process, AILint ensures the output is high-quality, secure, and maintainable.
+> **The Solution**: AILint provides a set of deterministic state machine rules that act as "guardrails" for AI code generation. By applying proven software engineering principles as constraints *during* the code generation process, AILint ensures the output is high-quality, secure, and maintainable.
 
 ## Why AILint?
 
 AI assistants, while powerful, frequently exhibit common pitfalls in code generation:
-- ❌ **Tightly Coupled & Untestable Code**: Defaults to hardcoded dependencies and monolithic structures.
-- ❌ **Insecure Patterns**: Introduces SQL injection vulnerabilities, weak cryptography, and other security flaws.
-- ❌ **Unreadable & Complex Code**: Generates deeply nested logic and vague naming conventions.
-- ❌ **Inefficient Operations**: Uses blocking calls instead of asynchronous, concurrent patterns.
-- ❌ **Inconsistent Practices**: Produces non-standard commit messages, unhelpful error messages, and generic variable/function names.
+- **Tightly Coupled & Untestable Code**: Defaults to hardcoded dependencies and monolithic structures.
+- **Insecure Patterns**: Introduces SQL injection vulnerabilities, weak cryptography, and other security flaws.
+- **Unreadable & Complex Code**: Generates deeply nested logic and vague naming conventions.
+- **Inefficient Operations**: Uses blocking calls instead of asynchronous, concurrent patterns.
+- **Inconsistent Practices**: Produces non-standard commit messages, unhelpful error messages, and generic variable/function names.
 
 **AILint solves these issues by applying constraints *during* the code generation process, not just after.**
 
@@ -34,16 +34,16 @@ AI Request → Detection → Analysis → Constraint → Validation → High-Qua
 
 AILint's core strength lies in its universal rules, which are language-agnostic and apply fundamental software engineering principles. These rules are defined in `.mdc` files within the `rules/universal/` directory.
 
-### 🏗️ **Architecture & Design**
+### **Architecture & Design**
 - **[avoid-god-classes](rules/universal/avoid-god-classes.mdc)**: Prevents AI from creating massive, multi-responsibility classes, enforcing the Single Responsibility Principle.
 - **[composition-over-inheritance](rules/universal/composition-over-inheritance.mdc)**: Guides AI to favor composition for flexible, testable designs over rigid inheritance hierarchies.
 - **[dependency-injection](rules/universal/dependency-injection.mdc)**: Ensures AI generates code with proper dependency injection, promoting testability and loose coupling.
 
-### 🔒 **Security & Performance**
+### **Security & Performance**
 - **[secure-by-default](rules/universal/secure-by-default.mdc)**: Enforces security-first patterns, preventing SQL injection, weak cryptography, and other common vulnerabilities.
 - **[promise-patterns](rules/universal/promise-patterns.mdc)**: Guides AI to use concurrent asynchronous patterns, eliminating blocking operations and improving performance.
 
-### ✨ **Code Quality & Readability**
+### **Code Quality & Readability**
 - **[prefer-early-returns](rules/universal/prefer-early-returns.mdc)**: Eliminates deeply nested if-else chains by enforcing guard clauses and early return patterns.
 - **[conventional-commits](rules/universal/conventional-commits.mdc)**: Ensures AI generates clear, structured commit messages following the Conventional Commits standard.
 - **[descriptive-function-names](rules/universal/descriptive-function-names.mdc)**: Prevents vague function names (`process`, `handle`) by enforcing intention-revealing, behavior-specific naming.
@@ -54,7 +54,7 @@ AILint's core strength lies in its universal rules, which are language-agnostic 
 
 See the dramatic improvement in AI-generated code when AILint's constraints are applied.
 
-### ❌ **Without AILint** (what AI typically generates):
+### **Without AILint** (what AI typically generates):
 
 ```python
 # Tightly coupled, insecure, unreadable nightmare
@@ -80,7 +80,7 @@ class UserService:
                             return user['email'].lower()
 ```
 
-### ✅ **With AILint** (constrained generation):
+### **With AILint** (constrained generation):
 
 ```python
 # Loosely coupled, secure, testable, and readable
@@ -185,9 +185,9 @@ We welcome contributions to expand AILint's rule set and improve its effectivene
 
 ### **Reporting Issues**
 
--   🐛 **Bug reports**: Describe unexpected AI behavior or rule failures with reproducible examples.
--   💡 **Feature requests**: Suggest new rules or enhancements to the AILint system.
--   📚 **Documentation**: Help improve clarity, examples, and guides.
+-   **Bug reports**: Describe unexpected AI behavior or rule failures with reproducible examples.
+-   **Feature requests**: Suggest new rules or enhancements to the AILint system.
+-   **Documentation**: Help improve clarity, examples, and guides.
 
 
 
@@ -224,4 +224,4 @@ This project is licensed under the MIT License – see the [LICENSE](LICENSE) fi
 
 **Built with ❤️ by developers who are tired of AI generating problematic code.**
 
-> 🎯 *"Stop the problematic code epidemic – one AI constraint at a time"* – AILint Team
+> *"Stop the problematic code epidemic – one AI constraint at a time"* – AILint Team
