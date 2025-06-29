@@ -26,6 +26,7 @@ export class GitHubApiClient {
     this.ruleCache = new RuleCache();
     this.indexCache = new IndexCache();
     this.loadCachesFromDisk(); // Load persistent cache on startup
+    console.error('GitHub token status:', this.token ? 'present' : 'missing');
   }
 
   /**
@@ -58,59 +59,65 @@ export class GitHubApiClient {
     await this.checkRateLimit();
 
     // 3. Execute request with retry logic
-    const result = await RetryManager.retryGitHubOperation(async () => {
-      const headers: HeadersInit = {
-        'Accept': 'application/vnd.github.v3+json',
-      };
-      if (this.token) {
-        headers['Authorization'] = `token ${this.token}`;
-      }
-      if (checksum) {
-        headers['If-None-Match'] = checksum; // Conditional request with ETag
-      }
+    // 3. Prepare headers com User-Agent
+    const headers: { [key: string]: string } = {
+      'User-Agent': 'AILint/1.0.0',
+      'Accept': 'application/vnd.github.v3+json'
+    };
 
-      const response = await fetch(url, { headers });
-
-      // Update rate limit from response headers
-      this.updateRateLimit(response.headers);
-
-      if (response.status === 304) {
-        // Not Modified - return cached data if available, otherwise throw
-        const cached = this.ruleCache.get(cacheKey);
-        if (cached) return cached.data as T;
-        throw new GitHubAPIError('Not Modified but no cache entry', 304, false, endpoint);
-      }
-
-      if (!response.ok) {
-        const errorBody = await response.text();
-        let rateLimited = false;
-        if (response.status === 403 && response.headers.get('X-RateLimit-Remaining') === '0') {
-          rateLimited = true;
-        }
-        throw new GitHubAPIError(
-          `GitHub API request failed: ${response.status} ${response.statusText} - ${errorBody.substring(0, 100)}`,
-          response.status,
-          rateLimited,
-          endpoint
-        );
-      }
-
-      const data = await response.json();
-      const etag = response.headers.get('ETag') || undefined;
-
-      // 4. Cache the response
-      if (useCache) {
-        this.ruleCache.set(cacheKey, data, undefined, { checksum: etag });
-        this.saveCachesToDisk(); // Persist cache to disk
-      }
-
-      return data as T;
-    });
-
-    if (!result.success) {
-      throw result.error; // Re-throw the last error from retry manager
+    if (this.token) {
+      headers['Authorization'] = `token ${this.token}`;
     }
-    return result.result!;
+
+    // 4. Make request com headers corretos
+    return await RetryManager.executeWithRetry(
+      async () => {
+        console.error(` Fetching: ${url}`); // DEBUG
+        
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: headers
+        });
+
+        console.error(` Response status: ${response.status}`); // DEBUG
+        
+        if (response.status === 304) {
+          // Not Modified - return cached data if available, otherwise throw
+          const cached = this.ruleCache.get(cacheKey);
+          if (cached) return cached.data as T;
+          throw new GitHubAPIError('Not Modified but no cache entry', 304, false, endpoint);
+        }
+
+        if (!response.ok) {
+          const errorBody = await response.text();
+          console.error(`❌ GitHub API Error: ${response.status} - ${errorBody}`); // DEBUG
+          throw new GitHubAPIError(
+            `GitHub API request failed: ${response.status} ${response.statusText}`,
+            response.status,
+            response.status === 403,
+            endpoint
+          );
+        }
+
+        const data = await response.json();
+        console.error(`✅ Received data length:`, Array.isArray(data) ? data.length : 'not array'); // DEBUG
+        
+        // Cache successful response
+        if (useCache) {
+          this.ruleCache.set(cacheKey, data, undefined, {
+            checksum: checksum || response.headers.get('etag') || undefined
+          });
+        }
+
+        this.updateRateLimit(response.headers);
+        return data as T;
+      }
+    ).then(result => {
+      if (!result.success) {
+        throw result.error;
+      }
+      return result.result!;
+    });
   }
 
   /**
