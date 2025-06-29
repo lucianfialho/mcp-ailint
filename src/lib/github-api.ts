@@ -26,7 +26,7 @@ export class GitHubApiClient {
     this.ruleCache = new RuleCache();
     this.indexCache = new IndexCache();
     this.loadCachesFromDisk(); // Load persistent cache on startup
-    console.error('GitHub token status:', this.token ? 'present' : 'missing');
+    
   }
 
   /**
@@ -72,14 +72,14 @@ export class GitHubApiClient {
     // 4. Make request com headers corretos
     return await RetryManager.executeWithRetry(
       async () => {
-        console.error(` Fetching: ${url}`); // DEBUG
+        
         
         const response = await fetch(url, {
           method: 'GET',
           headers: headers
         });
 
-        console.error(` Response status: ${response.status}`); // DEBUG
+        
         
         if (response.status === 304) {
           // Not Modified - return cached data if available, otherwise throw
@@ -100,7 +100,7 @@ export class GitHubApiClient {
         }
 
         const data = await response.json();
-        console.error(`✅ Received data length:`, Array.isArray(data) ? data.length : 'not array'); // DEBUG
+        
         
         // Cache successful response
         if (useCache) {
