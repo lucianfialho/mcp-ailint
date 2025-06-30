@@ -2,9 +2,8 @@ import { z } from 'zod';
 import { 
   AnalysisOptionsSchema, 
   AnalysisResultSchema, 
-  SetupProjectArgsSchema,
   HealthCheckResponseSchema,
-  AnalysisOptions, AnalysisResult, SetupProjectArgs, HealthCheckResponse
+  AnalysisOptions, AnalysisResult, HealthCheckResponse
 } from './schemas.js';
 
 import { AILintError, ErrorCategory, ErrorSeverity } from './errors.js';
@@ -76,19 +75,7 @@ export class ValidationLayer {
   /**
    * Validates setup project arguments
    */
-  static validateSetupProjectArgs(input: unknown): SetupProjectArgs {
-    const result = SetupProjectArgsSchema.safeParse(input);
-    
-    if (!result.success) {
-      throw new ValidationError(
-        'Invalid project setup arguments',
-        result.error.issues,
-        input
-      );
-    }
-    
-    return result.data;
-  }
+  
 
   /**
    * Validates health check response
@@ -178,6 +165,5 @@ export class ValidationLayer {
 export {
   AnalysisOptionsSchema,
   AnalysisResultSchema,
-  SetupProjectArgsSchema,
   HealthCheckResponseSchema
 } from './schemas.js';

@@ -54,7 +54,7 @@ export type {
 export { MetricsCollector } from './metrics.js';
 export { RuleParser } from './rule-parser.js';
 export { IntelligentCache, RuleCache, IndexCache } from './cache.js';
-export { ProjectConfigManager } from '../cli/projectConfig.js';
+
 
 export type {
   CacheConfig,

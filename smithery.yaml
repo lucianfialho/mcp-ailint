@@ -29,7 +29,7 @@ startCommand:
     additionalProperties: false
   commandFunction: |-
     (config) => {
-      const args = ["--no-warnings", "dist/index.js", "--transport", "stdio"];
+      const args = ["--no-warnings", "dist/server/index.js", "--transport", "stdio"];
       
       // Add ruleset configuration if provided
       if (config.rulesets && config.rulesets.length > 0) {
@@ -42,7 +42,7 @@ startCommand:
       }
       
       // Add project path if provided
-      if (config.projectPath && config.projectPath.trim()) {
+      if (config.projectPath && config.project.trim()) {
         args.push("--project-path", config.projectPath.trim());
       }
       
